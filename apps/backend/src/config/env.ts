@@ -1,25 +1,8 @@
-import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-
-import { config as loadDotenv } from 'dotenv';
 import { z } from 'zod';
 
-/**
- * pnpm runs each workspace package with its own directory as cwd, so a bare
- * dotenv call would look for apps/backend/.env. Config lives in a single root
- * .env, so walk up to the workspace root and load that instead.
- */
-function findWorkspaceRoot(start: string): string {
-  let dir = start;
-  for (;;) {
-    if (existsSync(resolve(dir, 'pnpm-workspace.yaml'))) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) return start;
-    dir = parent;
-  }
-}
+import { loadRootEnv } from './loadRootEnv.js';
 
-loadDotenv({ path: resolve(findWorkspaceRoot(process.cwd()), '.env') });
+loadRootEnv();
 
 const intFromEnv = (fallback: number) =>
   z.coerce.number().int().positive().default(fallback);

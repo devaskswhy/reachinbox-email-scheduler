@@ -1,0 +1,107 @@
+// ReachInbox Scheduler - data model
+// Regenerate the client with: pnpm --filter @reachinbox/backend db:generate
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// Lifecycle of a single outbound email.
+///
+/// PENDING     - row written, not yet handed to the queue
+/// QUEUED      - accepted by BullMQ, waiting for its send window
+/// SENDING     - claimed by a worker, SMTP handshake in flight
+/// SENT        - accepted by the upstream provider
+/// FAILED      - retries exhausted
+/// RESCHEDULED - pushed to a later slot, typically by the hourly rate limiter
+enum EmailJobStatus {
+  PENDING
+  QUEUED
+  SENDING
+  SENT
+  FAILED
+  RESCHEDULED
+}
+
+/// An SMTP identity that jobs are distributed across. In development these
+/// hold Ethereal test-account credentials minted by prisma/seed.ts.
+model Sender {
+  id    String @id @default(cuid())
+  /// Stable slot in the sender pool (0-based). Lets the seed recognise an
+  /// already-minted Ethereal account instead of creating a duplicate.
+  poolIndex Int    @unique
+  label     String
+  email     String @unique
+
+  smtpHost String
+  smtpPort Int
+  smtpUser String
+  smtpPass String
+
+  createdAt DateTime @default(now())
+
+  emailJobs EmailJob[]
+
+  @@map("senders")
+}
+
+/// One scheduling request: a subject/body fanned out across many recipients.
+model Campaign {
+  id      String   @id @default(cuid())
+  subject String
+  body    String   @db.Text
+  /// Earliest moment the first email may go out.
+  startTime DateTime
+  /// Minimum spacing between two sends in this campaign, in milliseconds.
+  delayMs   Int
+  /// Per-sender hourly ceiling for this campaign. Null falls back to the
+  /// global MAX_EMAILS_PER_HOUR_PER_SENDER setting.
+  hourlyLimit Int?
+  /// Email of the signed-in user who created the campaign.
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  emailJobs EmailJob[]
+
+  @@index([createdBy])
+  @@map("campaigns")
+}
+
+/// A single email addressed to one recipient. The id doubles as the BullMQ
+/// jobId, which makes enqueueing idempotent across restarts and retries.
+model EmailJob {
+  id String @id @default(cuid())
+
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  senderId String
+  sender   Sender @relation(fields: [senderId], references: [id], onDelete: Restrict)
+
+  recipientEmail String
+  subject        String
+  body           String   @db.Text
+  scheduledFor   DateTime
+
+  status   EmailJobStatus @default(PENDING)
+  attempts Int            @default(0)
+  /// Failure reason from the most recent attempt.
+  lastError String? @db.Text
+  /// Ethereal preview URL (or the provider's message id in production).
+  providerMessageId String?   @db.VarChar(512)
+  sentAt            DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Claiming due work: "which jobs are due to run right now".
+  @@index([status, scheduledFor])
+  /// Rate limiting: "how much has this sender sent recently".
+  @@index([senderId, status])
+  @@index([campaignId])
+  @@map("email_jobs")
+}

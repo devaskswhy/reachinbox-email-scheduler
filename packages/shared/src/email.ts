@@ -1,54 +1,56 @@
 /**
- * Lifecycle of a single scheduled email.
+ * Lifecycle of a single outbound email. Mirrors the EmailJobStatus enum in
+ * apps/backend/prisma/schema.prisma - keep the two in sync.
  *
- * PENDING    - persisted, not yet enqueued
- * SCHEDULED  - enqueued with a delay, waiting for its send window
- * PROCESSING - claimed by a worker, send in flight
- * SENT       - accepted by the upstream mail provider
- * FAILED     - exhausted all retries
- * CANCELLED  - cancelled before it was sent
+ * PENDING     - row written, not yet handed to the queue
+ * QUEUED      - accepted by BullMQ, waiting for its send window
+ * SENDING     - claimed by a worker, SMTP handshake in flight
+ * SENT        - accepted by the upstream provider
+ * FAILED      - retries exhausted
+ * RESCHEDULED - pushed to a later slot, typically by the hourly rate limiter
  */
 export const EMAIL_STATUSES = [
   'PENDING',
-  'SCHEDULED',
-  'PROCESSING',
+  'QUEUED',
+  'SENDING',
   'SENT',
   'FAILED',
-  'CANCELLED',
+  'RESCHEDULED',
 ] as const;
 
 export type EmailStatus = (typeof EMAIL_STATUSES)[number];
 
 /** Statuses from which no further transition is possible. */
-export const TERMINAL_EMAIL_STATUSES = ['SENT', 'FAILED', 'CANCELLED'] as const;
+export const TERMINAL_EMAIL_STATUSES = ['SENT', 'FAILED'] as const;
 
 export type TerminalEmailStatus = (typeof TERMINAL_EMAIL_STATUSES)[number];
 
 /** Payload accepted when scheduling a new campaign. */
 export interface ScheduleCampaignRequest {
-  /** Human-readable campaign name shown in the dashboard. */
-  name: string;
-  /** Recipient email addresses. One scheduled email is created per address. */
-  recipients: string[];
   subject: string;
   /** Message body. Rendering/templating is resolved at send time. */
   body: string;
-  /** ISO-8601 timestamp for the earliest send. Omit to start immediately. */
-  scheduledAt?: string;
+  /** Recipient addresses. One EmailJob is created per address. */
+  recipients: string[];
+  /** ISO-8601 timestamp for the earliest send. */
+  startTime: string;
+  /** Minimum spacing between sends in this campaign, in milliseconds. */
+  delayMs: number;
+  /** Per-sender hourly ceiling. Omit to inherit the global limit. */
+  hourlyLimit?: number;
 }
 
-/** A single queued or in-flight email, as returned by the API. */
+/** A queued or in-flight email, as returned by the API. Mirrors EmailJob. */
 export interface ScheduledEmailDTO {
   id: string;
   campaignId: string;
-  recipient: string;
+  senderId: string;
+  recipientEmail: string;
   subject: string;
   body: string;
-  status: EmailStatus;
   /** ISO-8601. Earliest moment this email may be sent. */
-  scheduledAt: string;
-  /** Sender assigned by the pool, or null while still unassigned. */
-  senderId: string | null;
+  scheduledFor: string;
+  status: EmailStatus;
   attempts: number;
   /** Failure reason from the most recent attempt, if any. */
   lastError: string | null;
@@ -59,15 +61,15 @@ export interface ScheduledEmailDTO {
 /** An email that reached a terminal delivery outcome. */
 export interface SentEmailDTO {
   id: string;
-  scheduledEmailId: string;
   campaignId: string;
-  recipient: string;
-  subject: string;
   senderId: string;
+  /** Sending identity's address, denormalised for display. */
   senderEmail: string;
-  /** Upstream provider message id, when the provider returns one. */
+  recipientEmail: string;
+  subject: string;
+  /** Ethereal preview URL, or the provider's message id in production. */
   providerMessageId: string | null;
   /** ISO-8601 timestamp of the delivery attempt. */
   sentAt: string;
-  status: Extract<EmailStatus, 'SENT' | 'FAILED'>;
+  status: TerminalEmailStatus;
 }
