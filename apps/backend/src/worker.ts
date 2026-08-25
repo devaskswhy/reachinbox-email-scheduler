@@ -1,28 +1,35 @@
+import type { Worker } from 'bullmq';
+
 import { env } from './config/env.js';
 import { prisma } from './lib/prisma.js';
+import type { EmailJobPayload } from './queue/emailQueue.js';
 import { closeEmailQueue } from './queue/emailQueue.js';
 import { reconcilePendingJobs } from './queue/reconcile.js';
+import { closeWorkerConnections, createEmailWorker } from './queue/worker.js';
 
+let worker: Worker<EmailJobPayload> | undefined;
 let shuttingDown = false;
 
 async function bootstrap(): Promise<void> {
   console.log(
     `[worker] booting concurrency=${env.WORKER_CONCURRENCY} ` +
-      `mode=${env.RATE_LIMIT_MODE} redis=${env.REDIS_URL}`,
+      `mode=${env.RATE_LIMIT_MODE} minDelay=${env.MIN_DELAY_MS_BETWEEN_SENDS}ms ` +
+      `hourlyLimit=${
+        env.RATE_LIMIT_MODE === 'global'
+          ? env.MAX_EMAILS_PER_HOUR
+          : env.MAX_EMAILS_PER_HOUR_PER_SENDER
+      }`,
   );
 
-  // The worker reconciles at boot too, not just the API. Either process may be
-  // the one that restarts first, and whichever comes up should repair the
-  // database-committed-but-never-queued window rather than waiting for the
-  // other. Both running it is harmless: the jobId dedupe means the second pass
-  // finds everything already present and adds nothing. Runs exactly once - no
-  // cron, no polling interval.
+  // Reconcile BEFORE the Worker starts consuming. Any row committed to MySQL
+  // that never reached Redis is restored first, so the worker does not begin
+  // draining a queue that is still missing jobs. Safe on every restart thanks
+  // to the jobId dedupe - see queue/reconcile.ts. Runs exactly once; there is
+  // no polling loop anywhere in this process.
   await reconcilePendingJobs('worker');
 
-  // The BullMQ Worker/processor is wired up in the next phase. Reconciliation
-  // deliberately happens before it would start consuming, so no job is
-  // processed while the backlog is still being restored.
-  console.log('[worker] ready (processor not yet implemented)');
+  worker = createEmailWorker();
+  console.log(`[worker] consuming queue, pid=${process.pid}`);
 }
 
 async function shutdown(signal: string): Promise<void> {
@@ -30,6 +37,13 @@ async function shutdown(signal: string): Promise<void> {
   shuttingDown = true;
 
   console.log(`[worker] ${signal} received, draining`);
+
+  // close() waits for in-flight jobs to finish and returns their locks, so a
+  // restart does not leave jobs stalled waiting for lock expiry.
+  if (worker !== undefined) {
+    await worker.close();
+  }
+  await closeWorkerConnections();
   await closeEmailQueue();
   await prisma.$disconnect();
 
