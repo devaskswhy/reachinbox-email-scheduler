@@ -2,6 +2,7 @@ import type { Campaign, Prisma } from '@prisma/client';
 
 import { ApiError } from '../lib/errors.js';
 import { prisma } from '../lib/prisma.js';
+import { enqueueEmailJob } from '../queue/enqueue.js';
 import type { PaginationInput } from '../validation/pagination.schema.js';
 import { buildPaginationMeta } from '../validation/pagination.schema.js';
 import type { ScheduleCampaignInput } from '../validation/campaign.schema.js';
@@ -18,11 +19,18 @@ const COMPLETED_STATUSES = ['SENT', 'FAILED'] as const;
  */
 const TRANSACTION_OPTIONS = { maxWait: 5_000, timeout: 30_000 } as const;
 
+/** How many enqueues are in flight at once during the post-commit fan-out. */
+const ENQUEUE_CONCURRENCY = 25;
+
 export interface ScheduleCampaignResult {
   campaign: Campaign;
   jobCount: number;
   /** Recipients dropped because the same address appeared more than once. */
   duplicatesRemoved: number;
+  /** Rows successfully handed to BullMQ and advanced to QUEUED. */
+  queuedCount: number;
+  /** Rows left PENDING because the enqueue failed; the reconciler recovers them. */
+  pendingCount: number;
 }
 
 /** Case-insensitive de-duplication, preserving the caller's ordering. */
@@ -92,7 +100,69 @@ export async function scheduleCampaign(
     return { campaign, jobCount: count };
   }, TRANSACTION_OPTIONS);
 
-  return { ...result, duplicatesRemoved };
+  // Enqueue only AFTER the transaction commits. Adding to Redis from inside the
+  // transaction would risk a job becoming visible to the worker before the row
+  // it points at is committed - the worker would read a row that does not exist
+  // yet. Committing first means the worst case is a row with no job, which the
+  // reconciler repairs on the next boot.
+  const { queuedCount, pendingCount } = await enqueueCampaignJobs(result.campaign.id);
+
+  return { ...result, duplicatesRemoved, queuedCount, pendingCount };
+}
+
+/**
+ * Hands every freshly created row to BullMQ, then advances the ones that made
+ * it to QUEUED.
+ *
+ * A failure here is deliberately not fatal to the request: the campaign is
+ * already durably committed, and any row left PENDING is picked up by
+ * reconcilePendingJobs() at the next boot. Failing the whole request would be
+ * worse - the caller would retry and create a duplicate campaign.
+ */
+async function enqueueCampaignJobs(
+  campaignId: string,
+): Promise<{ queuedCount: number; pendingCount: number }> {
+  const jobs = await prisma.emailJob.findMany({
+    where: { campaignId, status: 'PENDING' },
+    select: { id: true, scheduledFor: true },
+    orderBy: { scheduledFor: 'asc' },
+  });
+
+  const queuedIds: string[] = [];
+
+  for (let offset = 0; offset < jobs.length; offset += ENQUEUE_CONCURRENCY) {
+    const chunk = jobs.slice(offset, offset + ENQUEUE_CONCURRENCY);
+
+    const settled = await Promise.allSettled(
+      chunk.map(async (job) => {
+        await enqueueEmailJob(job);
+        return job.id;
+      }),
+    );
+
+    settled.forEach((outcome, index) => {
+      if (outcome.status === 'fulfilled') {
+        queuedIds.push(outcome.value);
+        return;
+      }
+      const failedId = chunk[index]?.id ?? 'unknown';
+      console.error(
+        `[schedule] enqueue failed for EmailJob ${failedId}, leaving PENDING:`,
+        outcome.reason instanceof Error ? outcome.reason.message : outcome.reason,
+      );
+    });
+  }
+
+  let queuedCount = 0;
+  if (queuedIds.length > 0) {
+    const { count } = await prisma.emailJob.updateMany({
+      where: { id: { in: queuedIds }, status: 'PENDING' },
+      data: { status: 'QUEUED' },
+    });
+    queuedCount = count;
+  }
+
+  return { queuedCount, pendingCount: jobs.length - queuedCount };
 }
 
 const JOB_LIST_SELECT = {

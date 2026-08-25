@@ -23,12 +23,9 @@ campaignRouter.post(
     const input = scheduleCampaignSchema.parse(req.body);
     const createdBy = resolveCreatedBy(req);
 
-    const { campaign, jobCount, duplicatesRemoved } = await scheduleCampaign(
-      input,
-      createdBy,
-    );
+    const result = await scheduleCampaign(input, createdBy);
 
-    res.status(201).json({ campaign, jobCount, duplicatesRemoved });
+    res.status(201).json(result);
   }),
 );
 
