@@ -1,27 +1,28 @@
-import cors from 'cors';
-import express from 'express';
-
+import { createApp } from './app.js';
 import { env } from './config/env.js';
+import { prisma } from './lib/prisma.js';
 
-const app = express();
-
-app.use(cors());
-app.use(express.json());
-
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'api', uptime: process.uptime() });
-});
-
-// Routes are registered in a later phase.
+const app = createApp();
 
 const server = app.listen(env.PORT, () => {
   console.log(`[api] listening on http://localhost:${env.PORT}`);
 });
 
-const shutdown = (signal: string) => {
-  console.log(`[api] ${signal} received, closing server`);
-  server.close(() => process.exit(0));
-};
+let shuttingDown = false;
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  console.log(`[api] ${signal} received, closing server`);
+
+  // Stop accepting connections before dropping the database pool, so in-flight
+  // requests can finish instead of failing mid-query.
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await prisma.$disconnect();
+
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
