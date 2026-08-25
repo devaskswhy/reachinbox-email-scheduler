@@ -1,0 +1,4 @@
+# Normalize line endings so Windows and CI agree on file contents.
+* text=auto eol=lf
+
+pnpm-lock.yaml linguist-generated=true -diff

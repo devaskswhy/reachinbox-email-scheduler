@@ -1,0 +1,14 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+allowBuilds:
+  esbuild: set this to true or false
+  msgpackr-extract: set this to true or false
+  unrs-resolver: set this to true or false
+
+# esbuild backs tsx/tsup and must run its postinstall to fetch a native binary.
+onlyBuiltDependencies:
+  - esbuild
+  - msgpackr-extract
+  - unrs-resolver

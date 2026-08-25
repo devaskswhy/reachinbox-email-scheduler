@@ -1,0 +1,29 @@
+{
+  "name": "reachinbox-scheduler",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ReachInbox Scheduler - a production-grade email scheduling system.",
+  "packageManager": "pnpm@11.23.0",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,worker,web -c cyan,magenta,green \"pnpm --filter @reachinbox/backend dev\" \"pnpm --filter @reachinbox/backend dev:worker\" \"pnpm --filter @reachinbox/frontend dev\"",
+    "build": "pnpm -r --filter @reachinbox/shared build && pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.4"
+  }
+}
