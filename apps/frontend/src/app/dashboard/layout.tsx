@@ -1,12 +1,11 @@
-import { Plus } from 'lucide-react';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { Brand } from '@/components/brand';
+import { ComposeDialog } from '@/components/compose-dialog';
 import { DashboardTabs } from '@/components/dashboard-tabs';
 import { UserMenu } from '@/components/user-menu';
-import { Button } from '@/components/ui/button';
 import { authOptions } from '@/lib/auth';
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
@@ -30,10 +29,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 border-t px-6 py-3">
           <DashboardTabs />
-          <Button size="sm">
-            <Plus aria-hidden />
-            Compose New Email
-          </Button>
+          <ComposeDialog />
         </div>
       </header>
 
