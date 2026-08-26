@@ -95,6 +95,9 @@
     *::before,
     *::after {
       animation-duration: 0.01ms !important;
+      /* Rows carry an inline animation-delay for the stagger; without this a
+         reduced-motion reader would still wait for it. */
+      animation-delay: 0ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
     }

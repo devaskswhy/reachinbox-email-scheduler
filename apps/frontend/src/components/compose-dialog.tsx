@@ -1,9 +1,9 @@
 'use client';
 
-import { Loader2, Plus } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Loader2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { FileDropzone } from '@/components/file-dropzone';
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { describeApiError, scheduleCampaign } from '@/lib/api';
+import { queryKeys } from '@/lib/query-keys';
 import {
   ACCEPTED_EXTENSIONS,
   parseRecipientFile,
@@ -49,11 +50,15 @@ const EMPTY_FORM: FormState = {
   hourlyLimit: '',
 };
 
-export function ComposeDialog() {
-  const router = useRouter();
+export interface ComposeDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function ComposeDialog({ open, onOpenChange }: ComposeDialogProps) {
+  const queryClient = useQueryClient();
   const { data: session } = useSession();
 
-  const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [parsed, setParsed] = useState<ParsedRecipients | null>(null);
   const [fileName, setFileName] = useState<string | undefined>(undefined);
@@ -72,14 +77,14 @@ export function ComposeDialog() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const openDialog = () => {
-    // Recompute the default each time: a dialog opened an hour after page load
-    // would otherwise carry a start time already in the past.
+  useEffect(() => {
+    if (!open) return;
+    // Recompute the default on every open: a dialog opened an hour after page
+    // load would otherwise carry a start time already in the past.
     setForm({ ...EMPTY_FORM, startTime: defaultStartTime() });
     setParsed(null);
     setFileName(undefined);
-    setOpen(true);
-  };
+  }, [open]);
 
   const handleFile = useCallback(async (file: File) => {
     setFileName(file.name);
@@ -114,7 +119,7 @@ export function ComposeDialog() {
         session?.user?.email,
       );
 
-      setOpen(false);
+      onOpenChange(false);
       toast.success(`Scheduled ${result.jobCount} emails`, {
         description:
           result.duplicatesRemoved > 0
@@ -122,9 +127,9 @@ export function ComposeDialog() {
             : undefined,
       });
 
-      // Re-runs the Scheduled tab's server component so the new rows appear.
-      router.refresh();
-      router.push('/dashboard/scheduled');
+      // Drops every cached page of the scheduled list so the new rows appear
+      // on the next render rather than after the 15s poll.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.scheduledAll });
     } catch (error) {
       toast.error('Could not schedule campaign', {
         description: describeApiError(error),
@@ -135,131 +140,124 @@ export function ComposeDialog() {
   }
 
   return (
-    <>
-      <Button size="sm" onClick={openDialog}>
-        <Plus aria-hidden />
-        Compose New Email
-      </Button>
-
-      <Modal
-        open={open}
-        onOpenChange={setOpen}
-        dismissible={!submitting}
-        title="Compose new email"
-        description="Upload a lead list and schedule the campaign."
-        footer={
-          <>
-            <Button
-              variant="outline"
+    <Modal
+      open={open}
+      onOpenChange={onOpenChange}
+      dismissible={!submitting}
+      title="Compose new email"
+      description="Upload a lead list and schedule the campaign."
+      footer={
+        <>
+          <Button
+            variant="outline"
+            disabled={submitting}
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button disabled={!canSubmit} onClick={() => void handleSubmit()}>
+            {submitting && <Loader2 aria-hidden className="animate-spin" />}
+            {submitting
+              ? 'Scheduling…'
+              : `Schedule${recipientCount > 0 ? ` ${recipientCount}` : ''}`}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <FormField label="Subject">
+          {(props) => (
+            <Input
+              {...props}
+              value={form.subject}
               disabled={submitting}
-              onClick={() => setOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button disabled={!canSubmit} onClick={() => void handleSubmit()}>
-              {submitting && <Loader2 aria-hidden className="animate-spin" />}
-              {submitting
-                ? 'Scheduling…'
-                : `Schedule${recipientCount > 0 ? ` ${recipientCount}` : ''}`}
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <FormField label="Subject">
+              placeholder="Quick question about your team"
+              onChange={(event) => set('subject', event.target.value)}
+            />
+          )}
+        </FormField>
+
+        <FormField label="Body" hint="Plain text or HTML. Sent as the email body.">
+          {(props) => (
+            <Textarea
+              {...props}
+              rows={6}
+              value={form.body}
+              disabled={submitting}
+              placeholder="Hi there,&#10;&#10;..."
+              onChange={(event) => set('body', event.target.value)}
+            />
+          )}
+        </FormField>
+
+        <FormField label="Lead list">
+          {() => (
+            <FileDropzone
+              accept={ACCEPTED_EXTENSIONS}
+              fileName={fileName}
+              disabled={submitting}
+              onFileSelected={(file) => void handleFile(file)}
+              onCleared={() => {
+                setFileName(undefined);
+                setParsed(null);
+              }}
+              summary={
+                <RecipientSummary
+                  parsing={parsing}
+                  parsed={parsed}
+                  hasFile={fileName !== undefined}
+                />
+              }
+            />
+          )}
+        </FormField>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Start time" hint="Local time.">
             {(props) => (
               <Input
                 {...props}
-                value={form.subject}
+                type="datetime-local"
+                value={form.startTime}
                 disabled={submitting}
-                placeholder="Quick question about your team"
-                onChange={(event) => set('subject', event.target.value)}
+                onChange={(event) => set('startTime', event.target.value)}
               />
             )}
           </FormField>
 
-          <FormField label="Body" hint="Plain text or HTML. Sent as the email body.">
-            {(props) => (
-              <Textarea
-                {...props}
-                rows={6}
-                value={form.body}
-                disabled={submitting}
-                placeholder="Hi there,&#10;&#10;..."
-                onChange={(event) => set('body', event.target.value)}
-              />
-            )}
-          </FormField>
-
-          <FormField label="Lead list">
-            {() => (
-              <FileDropzone
-                accept={ACCEPTED_EXTENSIONS}
-                fileName={fileName}
-                disabled={submitting}
-                onFileSelected={(file) => void handleFile(file)}
-                onCleared={() => {
-                  setFileName(undefined);
-                  setParsed(null);
-                }}
-                summary={
-                  <RecipientSummary
-                    parsing={parsing}
-                    parsed={parsed}
-                    hasFile={fileName !== undefined}
-                  />
-                }
-              />
-            )}
-          </FormField>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="Start time" hint="Local time.">
-              {(props) => (
-                <Input
-                  {...props}
-                  type="datetime-local"
-                  value={form.startTime}
-                  disabled={submitting}
-                  onChange={(event) => set('startTime', event.target.value)}
-                />
-              )}
-            </FormField>
-
-            <FormField label="Delay between emails" hint="Seconds.">
-              {(props) => (
-                <Input
-                  {...props}
-                  type="number"
-                  min={0}
-                  value={form.delaySeconds}
-                  disabled={submitting}
-                  onChange={(event) => set('delaySeconds', event.target.value)}
-                />
-              )}
-            </FormField>
-          </div>
-
-          <FormField
-            label="Hourly limit per sender"
-            optional
-            hint="Leave blank to use the server default."
-          >
+          <FormField label="Delay between emails" hint="Seconds.">
             {(props) => (
               <Input
                 {...props}
                 type="number"
-                min={1}
-                value={form.hourlyLimit}
+                min={0}
+                value={form.delaySeconds}
                 disabled={submitting}
-                placeholder="200"
-                onChange={(event) => set('hourlyLimit', event.target.value)}
+                onChange={(event) => set('delaySeconds', event.target.value)}
               />
             )}
           </FormField>
         </div>
-      </Modal>
-    </>
+
+        <FormField
+          label="Hourly limit per sender"
+          optional
+          hint="Leave blank to use the server default."
+        >
+          {(props) => (
+            <Input
+              {...props}
+              type="number"
+              min={1}
+              value={form.hourlyLimit}
+              disabled={submitting}
+              placeholder="200"
+              onChange={(event) => set('hourlyLimit', event.target.value)}
+            />
+          )}
+        </FormField>
+      </div>
+    </Modal>
   );
 }
 

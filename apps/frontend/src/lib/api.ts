@@ -103,3 +103,61 @@ export function scheduleCampaign(
     body: JSON.stringify(payload),
   });
 }
+
+export type EmailStatus =
+  'PENDING' | 'QUEUED' | 'SENDING' | 'SENT' | 'FAILED' | 'RESCHEDULED';
+
+/** One row as returned by the scheduled/sent list endpoints. */
+export interface EmailJobRow {
+  id: string;
+  campaignId: string;
+  senderId: string;
+  recipientEmail: string;
+  subject: string;
+  status: EmailStatus;
+  scheduledFor: string;
+  attempts: number;
+  lastError: string | null;
+  providerMessageId: string | null;
+  sentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  campaignSubject: string;
+  senderEmail: string;
+  senderLabel: string;
+}
+
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface EmailJobPage {
+  data: EmailJobRow[];
+  pagination: PaginationMeta;
+}
+
+export interface ListParams {
+  page?: number;
+  limit?: number;
+}
+
+function listQuery({ page = 1, limit = 20 }: ListParams): string {
+  return `?page=${String(page)}&limit=${String(limit)}`;
+}
+
+export function fetchScheduledEmails(params: ListParams = {}): Promise<EmailJobPage> {
+  return request<EmailJobPage>(`/api/campaigns/scheduled${listQuery(params)}`, {
+    method: 'GET',
+  });
+}
+
+export function fetchSentEmails(params: ListParams = {}): Promise<EmailJobPage> {
+  return request<EmailJobPage>(`/api/campaigns/sent${listQuery(params)}`, {
+    method: 'GET',
+  });
+}
