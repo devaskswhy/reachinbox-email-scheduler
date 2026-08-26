@@ -1,0 +1,176 @@
+# Production stack: everything on one host.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Reads secrets from .env.production. In-network hostnames and ports are set
+# explicitly below and deliberately override anything in that file, because the
+# published host ports (3307/6380) are for local development only - inside the
+# compose network the services talk on their real ports.
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: reachinbox-redis-prod
+    restart: unless-stopped
+    # noeviction is REQUIRED by BullMQ. Under memory pressure any other policy
+    # would evict keys - including delayed jobs - which silently destroys the
+    # restart guarantee the whole scheduler is built on. AOF keeps those jobs
+    # across a container restart.
+    command:
+      [
+        'redis-server',
+        '--appendonly',
+        'yes',
+        '--appendfsync',
+        'everysec',
+        '--maxmemory-policy',
+        'noeviction',
+      ]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [internal]
+
+  mysql:
+    image: mysql:8
+    container_name: reachinbox-mysql-prod
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-reachinbox}
+      MYSQL_USER: ${MYSQL_USER:-reachinbox}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-p${MYSQL_ROOT_PASSWORD}']
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 40s
+    networks: [internal]
+
+  # One-shot: applies migrations, then exits. The API and worker wait for it to
+  # succeed, so neither can start against a schema that is behind the code.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    image: reachinbox-backend:latest
+    container_name: reachinbox-migrate
+    restart: 'no'
+    environment:
+      DATABASE_URL: mysql://${MYSQL_USER:-reachinbox}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-reachinbox}
+    command: ['npx', 'prisma', 'migrate', 'deploy']
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks: [internal]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    image: reachinbox-backend:latest
+    container_name: reachinbox-api
+    restart: unless-stopped
+    env_file: [.env.production]
+    environment:
+      NODE_ENV: production
+      PORT: 4001
+      DATABASE_URL: mysql://${MYSQL_USER:-reachinbox}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-reachinbox}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:4001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [internal]
+
+  # Same image as the API, different entrypoint. Scale with
+  # `--scale worker=3`: the queue-wide limiter and the atomic claim make
+  # additional consumers safe without any code change.
+  worker:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    image: reachinbox-backend:latest
+    container_name: reachinbox-worker
+    restart: unless-stopped
+    env_file: [.env.production]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: mysql://${MYSQL_USER:-reachinbox}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-reachinbox}
+      REDIS_URL: redis://redis:6379
+    command: ['node', 'dist/worker.js']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    # SIGTERM triggers the graceful drain in worker.ts; give in-flight sends
+    # time to finish before Docker escalates to SIGKILL.
+    stop_grace_period: 40s
+    networks: [internal]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      args:
+        # Same origin as the site: Caddy routes /api/* to the API, so the
+        # browser never makes a cross-origin request.
+        NEXT_PUBLIC_BACKEND_URL: https://${DOMAIN:?set DOMAIN}
+    image: reachinbox-frontend:latest
+    container_name: reachinbox-web
+    restart: unless-stopped
+    env_file: [.env.production]
+    environment:
+      NODE_ENV: production
+      NEXTAUTH_URL: https://${DOMAIN}
+    depends_on:
+      api:
+        condition: service_started
+    networks: [internal]
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: reachinbox-caddy
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [api, web]
+    networks: [internal]
+
+volumes:
+  redis-data:
+  mysql-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  internal:
+    driver: bridge

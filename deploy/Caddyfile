@@ -1,0 +1,25 @@
+# Single origin for both apps.
+#
+# Routing /api/* to the backend means the browser calls the same host it loaded
+# the page from, so NEXT_PUBLIC_BACKEND_URL is just the site URL and there is no
+# CORS preflight, no second certificate, and no second DNS record to manage.
+#
+# Caddy provisions and renews TLS automatically from the DOMAIN below.
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy api:4001
+	}
+
+	handle {
+		reverse_proxy web:3001
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}

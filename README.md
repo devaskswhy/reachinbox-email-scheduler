@@ -184,6 +184,42 @@ pnpm docker:up      # start MySQL + Redis
 pnpm docker:down    # stop them (named volumes are kept)
 ```
 
+### Deploying to a server
+
+`docker-compose.prod.yml` runs the whole stack — MySQL, Redis, API, worker,
+frontend, and Caddy for automatic TLS — on a single host:
+
+```bash
+cp .env.production.example .env.production   # fill in DOMAIN, secrets, OAuth
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+docker compose -f docker-compose.prod.yml exec api npx prisma db seed
+```
+
+Four decisions in that file are worth calling out, because each closes a
+failure mode that is invisible until production:
+
+- **Redis is pinned to `--maxmemory-policy noeviction`.** BullMQ requires it.
+  Under memory pressure any other policy evicts keys — including delayed jobs —
+  which silently destroys the restart guarantee the scheduler is built on. Most
+  managed Redis free tiers evict by default, which is why this stack runs its
+  own Redis rather than using one.
+- **Migrations are a one-shot service.** The API and worker both wait on
+  `service_completed_successfully`, so neither can start against a schema that
+  is behind the code.
+- **Caddy routes `/api/*` to the API and everything else to the frontend**, so
+  both are served from one origin: no CORS preflight, one certificate, one DNS
+  record.
+- **The worker is its own service sharing the API's image.** Built once so the
+  two processes cannot drift, and `--scale worker=3` is safe with no code
+  change — the atomic claim and the queue-wide limiter already handle multiple
+  consumers.
+
+> **On hosting choice.** This architecture needs three always-on components: a
+> worker that never sleeps, Redis with persistence, and MySQL. Free platform
+> tiers are built for stateless request/response apps and break at least one of
+> those — services that sleep, workers behind a paywall, or Redis that evicts.
+> A small VPS (2 GB RAM minimum) is the honest floor for running this properly.
+
 ---
 
 ## Ethereal email

@@ -24,6 +24,9 @@ loadDotenv({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Emits .next/standalone with a traced, minimal node_modules so the runtime
+  // image does not need the whole pnpm workspace.
+  output: 'standalone',
   // @reachinbox/shared ships TypeScript source, so Next compiles it inline.
   transpilePackages: ['@reachinbox/shared'],
 };
