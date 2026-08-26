@@ -24,9 +24,9 @@ loadDotenv({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Emits .next/standalone with a traced, minimal node_modules so the runtime
-  // image does not need the whole pnpm workspace.
-  output: 'standalone',
+  // Standalone output is for the Docker image only. On Windows it needs
+  // symlink privileges the build does not have, so it stays off locally.
+  ...(process.env.DOCKER_BUILD === 'true' ? { output: 'standalone' } : {}),
   // @reachinbox/shared ships TypeScript source, so Next compiles it inline.
   transpilePackages: ['@reachinbox/shared'],
 };
