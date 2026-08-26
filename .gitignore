@@ -18,3 +18,5 @@ build/
 
 # TypeScript incremental build info
 *.tsbuildinfo
+tsconfig.tsbuildinfo
+*.tsbuildinfo
