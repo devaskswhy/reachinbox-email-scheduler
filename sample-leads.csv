@@ -1,0 +1,21 @@
+name,email,company,role
+Alice Bennett,alice.bennett@example.com,Northwind Trading,Head of Growth
+Bob Carter,bob.carter@example.com,Globex Logistics,Operations Lead
+Carol Diaz,carol.diaz@example.com,Initech Software,VP Engineering
+Daniel Evans,daniel.evans@example.com,Umbrella Health,Procurement
+Erin Foster,erin.foster@example.com,Stark Manufacturing,Plant Manager
+Frank Gupta,frank.gupta@example.com,Wayne Industrial,Buyer
+Grace Hall,grace.hall@example.com,Acme Components,Category Manager
+Henry Ibrahim,henry.ibrahim@example.com,Soylent Foods,Supply Chain
+Isla Jensen,isla.jensen@example.com,Tyrell Systems,CTO
+Jack Kowalski,jack.kowalski@example.com,Cyberdyne Robotics,Director of Sales
+Karen Lopez,karen.lopez@example.com,Hooli Cloud,Partnerships
+Liam Murphy,liam.murphy@example.com,Vandelay Imports,Founder
+Maya Nair,maya.nair@example.com,Pied Piper Data,Head of Ops
+Noah Olsen,noah.olsen@example.com,Aperture Labs,Research Lead
+Olivia Price,olivia.price@example.com,Black Mesa Energy,Facilities
+Not An Email Row,,Missing Address Co,
+Peter Quinn,PETER.QUINN@EXAMPLE.COM,Duplicate Test Ltd,Manager
+Rita Sharma,rita.sharma@example.com,Monarch Freight,Logistics
+Sam Turner,peter.quinn@example.com,Duplicate Test Ltd,Manager
+Tara Underwood,tara.underwood@example.com,Oceanic Airlines,Crew Scheduling

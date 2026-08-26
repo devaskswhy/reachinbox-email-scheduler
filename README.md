@@ -130,6 +130,13 @@ While the consent screen is unpublished, add every sign-in address under
 > `NEXTAUTH_URL` **must** match the address the frontend actually serves on. A
 > mismatch makes Google reject the callback.
 
+### Sample lead list
+
+`sample-leads.csv` at the repository root is a ready-made upload for trying the
+compose flow. It deliberately contains a header row, a row with no address, and
+one address repeated in different case, so the parser reports
+**18 valid � 2 skipped � 1 duplicate** rather than a uniform count.
+
 ### 5. Run everything
 
 ```bash
