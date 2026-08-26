@@ -3,9 +3,7 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { Brand } from '@/components/brand';
-import { ComposeButton } from '@/components/compose-button';
 import { ComposeProvider } from '@/components/compose-provider';
-import { DashboardTabs } from '@/components/dashboard-tabs';
 import { UserMenu } from '@/components/user-menu';
 import { authOptions } from '@/lib/auth';
 
@@ -18,9 +16,10 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   return (
     <ComposeProvider>
-      <div className="min-h-screen bg-muted/40">
-        <header className="border-b bg-background">
-          <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-6">
+      <div className="min-h-screen">
+        {/* Sticky so the tabs and Compose stay reachable down a long table. */}
+        <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur-md">
+          <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-6">
             <Brand />
             <UserMenu
               name={session.user?.name}
@@ -28,14 +27,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
               image={session.user?.image}
             />
           </div>
-
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 border-t px-6 py-3">
-            <DashboardTabs />
-            <ComposeButton />
-          </div>
         </header>
 
-        <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
+        <main className="mx-auto max-w-6xl px-6 py-10">{children}</main>
       </div>
     </ComposeProvider>
   );

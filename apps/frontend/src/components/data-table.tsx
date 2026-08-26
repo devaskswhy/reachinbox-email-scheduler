@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, Inbox, RefreshCw } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,8 @@ export interface DataTableProps<T> {
   error?: string | null;
   onRetry?: (() => void) | undefined;
   emptyMessage: string;
+  /** Secondary line under the empty-state title. */
+  emptyHint?: string;
   emptyAction?: ReactNode;
   onRowClick?: ((row: T) => void) | undefined;
   /** Marks a row as activatable, so it reads as clickable to a keyboard user. */
@@ -62,6 +64,7 @@ export function DataTable<T>({
   error = null,
   onRetry,
   emptyMessage,
+  emptyHint,
   emptyAction,
   onRowClick,
   isRowInteractive,
@@ -75,7 +78,7 @@ export function DataTable<T>({
     return (
       <div
         role="alert"
-        className="flex flex-col items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between"
+        className="flex flex-col items-start gap-4 rounded-xl border border-destructive/25 bg-destructive/5 p-5 sm:flex-row sm:items-center sm:justify-between"
       >
         <div className="flex items-start gap-3">
           <AlertCircle aria-hidden className="mt-0.5 size-5 shrink-0 text-destructive" />
@@ -97,11 +100,11 @@ export function DataTable<T>({
   const showEmpty = !isLoading && rows.length === 0;
 
   return (
-    <div className="rounded-lg border bg-background">
+    <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
       <Table>
         {caption !== undefined && <caption className="sr-only">{caption}</caption>}
         <TableHeader>
-          <TableRow className="hover:bg-transparent">
+          <TableRow className="border-b bg-muted/40 hover:bg-muted/40">
             {columns.map((column) => (
               <TableHead key={column.key} className={column.className}>
                 {column.header}
@@ -135,8 +138,10 @@ export function DataTable<T>({
                   key={getRowId(row)}
                   className={cn(
                     'animate-fade-up',
+                    // `group` lets a cell reveal its own hover affordance, e.g.
+                    // the external-link glyph on an openable sent row.
                     interactive &&
-                      'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                      'group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                   )}
                   style={{
                     animationDelay: `${String(
@@ -167,10 +172,20 @@ export function DataTable<T>({
             })}
 
           {showEmpty && (
-            <TableRow className="hover:bg-transparent">
-              <TableCell colSpan={columns.length} className="py-14">
-                <div className="flex flex-col items-center gap-4 text-center">
-                  <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+            <TableRow className="border-b bg-muted/40 hover:bg-muted/40">
+              <TableCell colSpan={columns.length} className="py-20">
+                <div className="mx-auto flex max-w-xs animate-fade-up flex-col items-center gap-5 text-center">
+                  <div className="grid size-14 place-items-center rounded-2xl bg-muted text-muted-foreground">
+                    <Inbox aria-hidden className="size-6" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="font-semibold tracking-tight">{emptyMessage}</p>
+                    {emptyHint !== undefined && (
+                      <p className="text-sm leading-relaxed text-muted-foreground">
+                        {emptyHint}
+                      </p>
+                    )}
+                  </div>
                   {emptyAction}
                 </div>
               </TableCell>
@@ -180,7 +195,7 @@ export function DataTable<T>({
       </Table>
 
       {footer !== undefined && !showEmpty && (
-        <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
+        <div className="flex items-center justify-between gap-3 border-t bg-muted/30 px-5 py-3">
           {footer}
         </div>
       )}

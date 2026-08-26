@@ -63,6 +63,15 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        success: 'hsl(var(--success))',
+        info: 'hsl(var(--info))',
+        warning: 'hsl(var(--warning))',
+      },
+      fontFamily: {
+        sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      },
+      letterSpacing: {
+        tighter: '-0.03em',
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -83,6 +92,14 @@ const config: Config = {
         page: '600ms',
       },
       keyframes: {
+        'fade-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        rise: {
+          from: { opacity: '0', transform: 'translateY(18px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
         'fade-up': {
           from: { opacity: '0', transform: 'translateY(8px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
@@ -90,6 +107,8 @@ const config: Config = {
       },
       animation: {
         'fade-up': 'fade-up 300ms cubic-bezier(0.32, 0.72, 0, 1) both',
+        'fade-in': 'fade-in 600ms cubic-bezier(0.32, 0.72, 0, 1) both',
+        rise: 'rise 600ms cubic-bezier(0.32, 0.72, 0, 1) both',
       },
     },
   },

@@ -1,32 +1,17 @@
 import { cn } from '@/lib/utils';
 
-/**
- * App name plus a logo placeholder. Isolated so swapping in the real mark
- * later touches one file, not both the login card and the dashboard header.
- */
-export function Brand({
-  className,
-  size = 'md',
-}: {
-  className?: string;
-  size?: 'md' | 'lg';
-}) {
-  const box = size === 'lg' ? 'h-12 w-12 text-lg' : 'h-9 w-9 text-sm';
-  const label = size === 'lg' ? 'text-xl' : 'text-base';
-
+/** App mark plus wordmark. One file to swap when a real logo lands. */
+export function Brand({ className }: { className?: string }) {
   return (
-    <div className={cn('flex items-center gap-3', className)}>
+    <div className={cn('flex items-center gap-2.5', className)}>
       <div
         aria-hidden
-        className={cn(
-          'grid shrink-0 place-items-center rounded-xl bg-primary font-semibold text-primary-foreground',
-          box,
-        )}
+        className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-[13px] font-bold text-primary-foreground"
       >
         RI
       </div>
-      <span className={cn('font-semibold tracking-tight', label)}>
-        ReachInbox <span className="text-muted-foreground">Scheduler</span>
+      <span className="text-[15px] font-semibold tracking-tight">
+        ReachInbox <span className="font-normal text-muted-foreground">Scheduler</span>
       </span>
     </div>
   );

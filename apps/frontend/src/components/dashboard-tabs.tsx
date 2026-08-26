@@ -6,19 +6,23 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
 const TABS = [
-  { href: '/dashboard/scheduled', label: 'Scheduled Emails' },
-  { href: '/dashboard/sent', label: 'Sent Emails' },
+  { href: '/dashboard/scheduled', label: 'Scheduled' },
+  { href: '/dashboard/sent', label: 'Sent' },
 ] as const;
 
 /**
- * Tabs are real routes rather than local state, so a tab is linkable,
- * refreshable and back-button friendly. Active state comes from the pathname.
+ * Segmented control rather than underlined tabs: it reads as a filter over one
+ * dataset, which is what these two views actually are. Routes, not local
+ * state, so each is linkable and back-button friendly.
  */
 export function DashboardTabs() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Email views" className="flex items-center gap-1">
+    <nav
+      aria-label="Email views"
+      className="inline-flex items-center gap-1 rounded-xl border bg-muted/60 p-1"
+    >
       {TABS.map((tab) => {
         const isActive = pathname.startsWith(tab.href);
         return (
@@ -27,22 +31,13 @@ export function DashboardTabs() {
             href={tab.href}
             aria-current={isActive ? 'page' : undefined}
             className={cn(
-              'relative rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'rounded-lg px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
               isActive
-                ? 'text-foreground'
+                ? 'bg-card text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
             {tab.label}
-            {/* The one accent again: the active underline matches every other
-                interactive element because it reads from --primary. */}
-            <span
-              aria-hidden
-              className={cn(
-                'absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-primary transition-opacity',
-                isActive ? 'opacity-100' : 'opacity-0',
-              )}
-            />
           </Link>
         );
       })}

@@ -86,8 +86,10 @@ export function FileDropzone({
         onDragOver={(event) => event.preventDefault()}
         onDrop={onDrop}
         className={cn(
-          'rounded-lg border-2 border-dashed p-6 text-center transition-colors',
-          isDragging ? 'border-primary bg-primary/5' : 'border-input',
+          'rounded-xl border-2 border-dashed bg-muted/30 p-7 text-center transition-colors',
+          isDragging
+            ? 'border-primary bg-primary/5'
+            : 'border-input hover:border-muted-foreground/40',
           disabled && 'pointer-events-none opacity-60',
         )}
       >

@@ -24,19 +24,25 @@ const columns: ReadonlyArray<DataTableColumn<EmailJobRow>> = [
     key: 'recipient',
     header: 'Recipient',
     cell: (row) => (
-      <span className="flex items-center gap-1.5 font-medium">
-        {row.recipientEmail}
-        {hasPreview(row) && (
-          <ExternalLink aria-hidden className="size-3 shrink-0 text-muted-foreground" />
-        )}
-      </span>
+      <div className="min-w-0">
+        <p className="flex items-center gap-1.5 truncate font-medium">
+          <span className="truncate">{row.recipientEmail}</span>
+          {hasPreview(row) && (
+            <ExternalLink
+              aria-hidden
+              className="size-3 shrink-0 text-muted-foreground transition-colors group-hover:text-primary"
+            />
+          )}
+        </p>
+        <p className="truncate text-xs text-muted-foreground">via {row.senderEmail}</p>
+      </div>
     ),
   },
   {
     key: 'subject',
     header: 'Subject',
     cell: (row) => (
-      <span className="line-clamp-1 max-w-[28ch] text-muted-foreground">
+      <span className="line-clamp-1 max-w-[32ch] text-muted-foreground">
         {row.subject}
       </span>
     ),
@@ -47,7 +53,7 @@ const columns: ReadonlyArray<DataTableColumn<EmailJobRow>> = [
     cell: (row) => (
       // FAILED rows have no sentAt; fall back to when the attempt finished so
       // the column is never blank.
-      <time dateTime={row.sentAt ?? row.updatedAt} className="tabular-nums">
+      <time dateTime={row.sentAt ?? row.updatedAt} className="tabular text-[13px]">
         {formatLocalDateTime(row.sentAt ?? row.updatedAt)}
       </time>
     ),
@@ -84,7 +90,8 @@ export function SentEmailsTable() {
       isLoading={query.isPending}
       error={query.isError ? describeApiError(query.error) : null}
       onRetry={() => void query.refetch()}
-      emptyMessage="No emails sent yet"
+      emptyMessage="Nothing sent yet"
+      emptyHint="Once the worker drains a scheduled campaign, delivered mail shows up here."
       emptyAction={<ComposeButton />}
       isRowInteractive={hasPreview}
       onRowClick={(row) => {
@@ -97,8 +104,7 @@ export function SentEmailsTable() {
         meta === undefined ? undefined : (
           <>
             <p className="text-xs text-muted-foreground">
-              {meta.total} sent · times in {localTimeZoneLabel()} · click a row to open
-              its preview
+              {meta.total} sent · {localTimeZoneLabel()} · click a row to read it
             </p>
             <div className="flex items-center gap-2">
               <Button

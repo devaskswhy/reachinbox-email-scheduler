@@ -17,13 +17,18 @@ const columns: ReadonlyArray<DataTableColumn<EmailJobRow>> = [
   {
     key: 'recipient',
     header: 'Recipient',
-    cell: (row) => <span className="font-medium">{row.recipientEmail}</span>,
+    cell: (row) => (
+      <div className="min-w-0">
+        <p className="truncate font-medium">{row.recipientEmail}</p>
+        <p className="truncate text-xs text-muted-foreground">via {row.senderEmail}</p>
+      </div>
+    ),
   },
   {
     key: 'subject',
     header: 'Subject',
     cell: (row) => (
-      <span className="line-clamp-1 max-w-[28ch] text-muted-foreground">
+      <span className="line-clamp-1 max-w-[32ch] text-muted-foreground">
         {row.subject}
       </span>
     ),
@@ -32,7 +37,7 @@ const columns: ReadonlyArray<DataTableColumn<EmailJobRow>> = [
     key: 'scheduledFor',
     header: 'Scheduled',
     cell: (row) => (
-      <time dateTime={row.scheduledFor} className="tabular-nums">
+      <time dateTime={row.scheduledFor} className="tabular text-[13px]">
         {formatLocalDateTime(row.scheduledFor)}
       </time>
     ),
@@ -72,13 +77,24 @@ export function ScheduledEmailsTable() {
       isLoading={query.isPending}
       error={query.isError ? describeApiError(query.error) : null}
       onRetry={() => void query.refetch()}
-      emptyMessage="No emails scheduled yet"
+      emptyMessage="Nothing scheduled yet"
+      emptyHint="Upload a lead list and pick a send window to get your first campaign moving."
       emptyAction={<ComposeButton />}
       footer={
         meta === undefined ? undefined : (
           <>
-            <p className="text-xs text-muted-foreground">
-              {meta.total} scheduled · times in {localTimeZoneLabel()} · refreshes every{' '}
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              {/* Pulses while a poll is in flight, so "live" is visible rather
+                  than merely claimed. */}
+              <span
+                aria-hidden
+                className={
+                  query.isFetching
+                    ? 'size-1.5 animate-pulse rounded-full bg-primary'
+                    : 'size-1.5 rounded-full bg-success'
+                }
+              />
+              {meta.total} scheduled · {localTimeZoneLabel()} · live every{' '}
               {SCHEDULED_REFETCH_MS / 1000}s
             </p>
             <div className="flex items-center gap-2">
