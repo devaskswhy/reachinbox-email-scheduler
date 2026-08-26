@@ -34,6 +34,16 @@ const envSchema = z.object({
    * the retry/backoff and FAILED paths. 0 disables injection entirely.
    */
   SIMULATE_SMTP_FAILURE_RATE: z.coerce.number().min(0).max(1).default(0),
+  /**
+   * Deployment convenience for hosts that only offer web services: runs the
+   * BullMQ worker inside the API process instead of as its own. The default is
+   * false, and docker-compose.prod.yml keeps them separate, because a shared
+   * process means a busy API and a busy worker contend for the same event loop.
+   */
+  RUN_WORKER_IN_API: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

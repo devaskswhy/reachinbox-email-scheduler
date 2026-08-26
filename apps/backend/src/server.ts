@@ -5,6 +5,7 @@ import { env } from './config/env.js';
 import { prisma } from './lib/prisma.js';
 import { closeEmailQueue } from './queue/emailQueue.js';
 import { reconcilePendingJobs } from './queue/reconcile.js';
+import { closeWorkerConnections, createEmailWorker } from './queue/worker.js';
 
 let server: Server | undefined;
 let shuttingDown = false;
@@ -18,6 +19,12 @@ async function bootstrap(): Promise<void> {
   // for everything Redis already holds. See queue/reconcile.ts for the full
   // reasoning. This runs exactly once - there is no polling loop.
   await reconcilePendingJobs('api');
+
+  if (env.RUN_WORKER_IN_API) {
+    // Same reconcile-then-consume order as the standalone worker entrypoint.
+    createEmailWorker();
+    console.log('[api] worker running in-process (RUN_WORKER_IN_API=true)');
+  }
 
   server = createApp().listen(env.PORT, () => {
     console.log(`[api] listening on http://localhost:${env.PORT}`);
@@ -35,6 +42,7 @@ async function shutdown(signal: string): Promise<void> {
   if (server !== undefined) {
     await new Promise<void>((resolve) => server?.close(() => resolve()));
   }
+  if (env.RUN_WORKER_IN_API) await closeWorkerConnections();
   await closeEmailQueue();
   await prisma.$disconnect();
 
