@@ -17,5 +17,4 @@ export {
   reserveSendSlot,
   type RateLimitDecision,
 } from './rateLimiter.js';
-export { sendEmail, type SendResult } from './sender.js';
 export { closeWorkerConnections, createEmailWorker } from './worker.js';

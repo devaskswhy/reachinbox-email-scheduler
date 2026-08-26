@@ -2,6 +2,7 @@ import type { Worker } from 'bullmq';
 
 import { env } from './config/env.js';
 import { prisma } from './lib/prisma.js';
+import { closeTransporters } from './mail/index.js';
 import type { EmailJobPayload } from './queue/emailQueue.js';
 import { closeEmailQueue } from './queue/emailQueue.js';
 import { reconcilePendingJobs } from './queue/reconcile.js';
@@ -43,6 +44,8 @@ async function shutdown(signal: string): Promise<void> {
   if (worker !== undefined) {
     await worker.close();
   }
+  // Close pooled SMTP sockets only after in-flight sends have finished.
+  closeTransporters();
   await closeWorkerConnections();
   await closeEmailQueue();
   await prisma.$disconnect();

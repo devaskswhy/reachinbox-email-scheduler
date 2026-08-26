@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { createRedisConnection } from './connection.js';
 import { EMAIL_QUEUE_NAME, type EmailJobPayload } from './emailQueue.js';
 import { hourlyLimitFor, nextHourWindowStart, reserveSendSlot } from './rateLimiter.js';
-import { sendEmail } from './sender.js';
+import { sendEmail } from '../mail/index.js';
 
 /** Statuses a job may legitimately be claimed from. */
 const CLAIMABLE_STATUSES = ['PENDING', 'QUEUED', 'RESCHEDULED'] as const;

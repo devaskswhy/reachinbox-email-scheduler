@@ -29,6 +29,11 @@ const envSchema = z.object({
   MAX_EMAILS_PER_HOUR: intFromEnv(1000),
   RATE_LIMIT_MODE: rateLimitMode,
   SENDER_POOL_SIZE: intFromEnv(3),
+  /**
+   * Probability (0-1) that a send throws before touching SMTP, for exercising
+   * the retry/backoff and FAILED paths. 0 disables injection entirely.
+   */
+  SIMULATE_SMTP_FAILURE_RATE: z.coerce.number().min(0).max(1).default(0),
 });
 
 export type Env = z.infer<typeof envSchema>;
