@@ -15,17 +15,54 @@ Built for the ReachInbox full-stack assignment.
 
 ---
 
+## For reviewers — start here
+
+**Five commands to a working system.** Assumes Docker, Node 18.17+ and pnpm.
+
+```bash
+pnpm install
+cp .env.example .env                                  # then add Google OAuth creds
+pnpm docker:up                                        # MySQL + Redis
+pnpm --filter @reachinbox/backend db:migrate          # schema
+pnpm --filter @reachinbox/backend db:seed             # mints 3 Ethereal inboxes
+pnpm dev                                              # API + worker + frontend
+```
+
+Open <http://localhost:3001>, sign in, and upload `sample-leads.csv` from the
+repository root.
+
+**Want to check the two hard requirements without reading any code?**
+
+| Claim                 | Command                                           | What it proves                                                               |
+| --------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Handles 1000+ at once | `pnpm --filter @reachinbox/backend simulate:load` | 1000 scheduled, 0 dropped, and the hour-bucket spread the rate limit implies |
+| Survives restart      | `pnpm --filter @reachinbox/backend test:restart`  | asserts no duplicate rows, jobs still queued, nothing sent early             |
+
+Both print pass/fail. Neither sends real email.
+
+**Where the interesting code lives**
+
+| Requirement                 | File                                                 |
+| --------------------------- | ---------------------------------------------------- |
+| No cron — delayed jobs      | `apps/backend/src/queue/enqueue.ts`                  |
+| Restart safety              | `apps/backend/src/queue/reconcile.ts`                |
+| Rate limiting + concurrency | `apps/backend/src/queue/worker.ts`, `rateLimiter.ts` |
+| Scheduling transaction      | `apps/backend/src/services/campaign.service.ts`      |
+
+Each carries a comment block explaining _why_, not just what.
+
 ## Contents
 
-1. [Overview](#overview)
-2. [Quick start](#quick-start)
-3. [Ethereal email](#ethereal-email)
-4. [Environment variables](#environment-variables)
-5. [Architecture](#architecture)
-6. [Verification scripts](#verification-scripts)
-7. [Features implemented](#features-implemented)
-8. [Deployment](#deployment)
-9. [Assumptions and trade-offs](#assumptions-and-trade-offs)
+1. [For reviewers — start here](#for-reviewers--start-here)
+2. [Overview](#overview)
+3. [Quick start](#quick-start)
+4. [Ethereal email](#ethereal-email)
+5. [Environment variables](#environment-variables)
+6. [Architecture](#architecture)
+7. [Verification scripts](#verification-scripts)
+8. [Features implemented](#features-implemented)
+9. [Deployment](#deployment)
+10. [Assumptions and trade-offs](#assumptions-and-trade-offs)
 
 ---
 
