@@ -9,7 +9,7 @@ Built for the ReachInbox full-stack assignment.
 
 |                |                                                                                |
 | -------------- | ------------------------------------------------------------------------------ |
-| **Live demo**  | See [Deployment](#deployment) — hosted via Cloudflare Tunnel                   |
+| **Live demo**  | <https://chamber-seismic-sloppily.ngrok-free.dev>                              |
 | **Stack**      | TypeScript · Express · BullMQ · Redis · MySQL · Prisma · Next.js 14 · Tailwind |
 | **Scheduling** | BullMQ delayed jobs — **no cron, anywhere**                                    |
 
@@ -172,7 +172,7 @@ While the consent screen is unpublished, add every sign-in address under
 `sample-leads.csv` at the repository root is a ready-made upload for trying the
 compose flow. It deliberately contains a header row, a row with no address, and
 one address repeated in different case, so the parser reports
-**18 valid � 2 skipped � 1 duplicate** rather than a uniform count.
+**18 valid, 2 skipped, 1 duplicate** rather than a uniform count.
 
 ### 5. Run everything
 
@@ -592,17 +592,23 @@ nothing, and every send happened _after_ its scheduled time.
 
 ### Live demo
 
-Hosted via **Cloudflare Tunnel** from a local machine. See
-[Assumptions and trade-offs](#assumptions-and-trade-offs) for why.
+<https://chamber-seismic-sloppily.ngrok-free.dev>
+
+Served from a development machine through a reserved ngrok domain. **One public
+endpoint, not two:** only the frontend port is exposed, and `next.config.mjs`
+rewrites `/api/campaigns/*` and `/api/health` to the backend. That keeps both
+apps on a single origin, so there is no CORS preflight and the Google OAuth
+client needs one redirect URI rather than two. `/api/auth/*` is deliberately
+**not** rewritten — it belongs to NextAuth.
 
 ```bash
-cloudflared tunnel --url http://localhost:3001   # frontend
-cloudflared tunnel --url http://localhost:4001   # API
+ngrok config add-authtoken <your-token>   # once
+ngrok http 3001                            # reserved domain, stable across restarts
 ```
 
-Set `NEXTAUTH_URL` and `NEXT_PUBLIC_BACKEND_URL` to the generated URLs, rebuild
-the frontend (`NEXT_PUBLIC_*` is inlined at build time), and add the frontend URL
-to the Google OAuth client's origins and redirect URIs.
+The URL is stable; the hosting is not. It needs the machine awake with Docker,
+the API, the worker, the frontend and the agent all running. For hosting that
+does not depend on a laptop, use the compose stack below.
 
 ### Real deployment — single host
 
@@ -638,11 +644,17 @@ Four decisions in that file each close a failure mode invisible until production
 
 ## Assumptions and trade-offs
 
-**Hosting is a Cloudflare Tunnel, not a platform deploy.** Railway's trial caps
-service provisioning below what four services need, Render's free tier was
+**Hosting runs from a development machine, not a platform.** Railway's trial
+caps service provisioning below what four services need, Render's free tier was
 unavailable on this account, Koyeb was down, and Aiven never finished
-provisioning. The tunnel gives a real HTTPS URL from the same stack;
-`docker-compose.prod.yml` is the production path and builds cleanly.
+provisioning. A reserved ngrok domain gives a stable HTTPS URL from the same
+stack; `docker-compose.prod.yml` is the production path and builds cleanly.
+
+**The deployed API has no authentication of its own.** The dashboard is gated by
+Google OAuth, but the campaign endpoints behind it are not, so anyone holding
+the public URL could schedule a campaign. Left open deliberately so reviewers
+are not blocked by a shared password; the fix is the session verification
+described in the next point.
 
 **`Campaign.createdBy` is not yet authenticated.** The frontend forwards the
 session email in an `x-user-email` header. That header is caller-controlled and

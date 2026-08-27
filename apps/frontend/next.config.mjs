@@ -29,6 +29,17 @@ const nextConfig = {
   ...(process.env.DOCKER_BUILD === 'true' ? { output: 'standalone' } : {}),
   // @reachinbox/shared ships TypeScript source, so Next compiles it inline.
   transpilePackages: ['@reachinbox/shared'],
+
+  // Proxy the backend through this origin so a single public endpoint serves
+  // both apps. /api/auth/* is deliberately NOT rewritten - that belongs to
+  // NextAuth and must keep being handled here.
+  async rewrites() {
+    const backend = process.env.BACKEND_ORIGIN ?? 'http://localhost:4001';
+    return [
+      { source: '/api/campaigns/:path*', destination: `${backend}/api/campaigns/:path*` },
+      { source: '/api/health', destination: `${backend}/api/health` },
+    ];
+  },
 };
 
 export default nextConfig;
